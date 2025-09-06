@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Administrativo - Catálogo Online</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .product-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .ml-btn {
+            background: linear-gradient(135deg, #FFE600, #FFC107);
+            color: #333;
+            transition: all 0.3s ease;
+        }
+        .ml-btn:hover {
+            background: linear-gradient(135deg, #FFC107, #FF9800);
+            transform: scale(1.05);
+        }
+        .sync-animation {
+            animation: spin 2s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .stock-low {
+            background: linear-gradient(135deg, #FEF3C7, #FDE68A);
+            border-left: 4px solid #F59E0B;
+        }
+        .stock-out {
+            background: linear-gradient(135deg, #FEE2E2, #FECACA);
+            border-left: 4px solid #EF4444;
+        }
+        .stock-good {
+            background: linear-gradient(135deg, #D1FAE5, #A7F3D0);
+            border-left: 4px solid #10B981;
+        }
+        .admin-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Admin Header -->
+    <header class="admin-header shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <div class="flex justify-between items-center flex-wrap gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold text-white">🔧 Painel Administrativo</h1>
+                    <p class="text-purple-100 mt-1">Gerencie seus produtos e configurações</p>
+                </div>
+                <div class="flex gap-3 flex-wrap">
+                    <button onclick="openClientCatalog()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors">
+                        👁️ Ver Catálogo
+                    </button>
+                    <button onclick="syncMercadoLivre()" id="syncBtn" class="ml-btn px-6 py-2 rounded-lg font-semibold flex items-center gap-2">
+                        <span id="syncIcon">🔄</span> Sincronizar ML
+                    </button>
+                    <button onclick="toggleMLConfig()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors">
+                        ⚙️ Config ML
+                    </button>
+                    <button onclick="toggleAddForm()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors">
+                        ➕ Adicionar
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Status Bar -->
+            <div class="mt-4 flex items-center justify-between bg-white bg-opacity-20 backdrop-blur rounded-lg p-4">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 bg-green-400 rounded-full" id="mlStatus"></div>
+                        <span class="text-sm font-medium text-white" id="mlStatusText">Conectado ao Mercado Livre</span>
+                    </div>
+                    <div class="text-sm text-purple-100">
+                        Última sincronização: <span id="lastSync">Nunca</span>
+                    </div>
+                </div>
+                <div class="text-sm text-purple-100">
+                    Total de produtos: <span id="totalProducts">0</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Quick Stats -->
+    <div class="max-w-7xl mx-auto px-4 py-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-xl p-6 shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Total Produtos</p>
+                        <p class="text-2xl font-bold text-gray-800" id="statsTotal">0</p>
+                    </div>
+                    <div class="text-3xl">📦</div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl p-6 shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Em Estoque</p>
+                        <p class="text-2xl font-bold text-green-600" id="statsInStock">0</p>
+                    </div>
+                    <div class="text-3xl">✅</div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl p-6 shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Estoque Baixo</p>
+                        <p class="text-2xl font-bold text-yellow-600" id="statsLowStock">0</p>
+                    </div>
+                    <div class="text-3xl">⚠️</div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl p-6 shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Fora de Estoque</p>
+                        <p class="text-2xl font-bold text-red-600" id="statsOutStock">0</p>
+                    </div>
+                    <div class="text-3xl">❌</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mercado Livre Config Modal -->
+    <div id="mlConfig" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Configurar Mercado Livre</h2>
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">User ID do Mercado Livre</label>
+                <input type="text" id="mlUserId" placeholder="123456789" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent">
+                <p class="text-sm text-gray-500 mt-1">Encontre em: Minha conta > Dados pessoais</p>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">Access Token (Demo)</label>
+                <input type="password" id="mlToken" placeholder="APP_USR-123456..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent">
+                <p class="text-sm text-gray-500 mt-1">⚠️ Demo: Use qualquer valor para teste</p>
+            </div>
+            <div class="mb-6">
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" id="autoSync" class="rounded">
+                    <span class="text-gray-700">Sincronização automática (a cada 30min)</span>
+                </label>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="saveMLConfig()" class="flex-1 ml-btn py-2 rounded-lg font-semibold">
+                    Conectar
+                </button>
+                <button onclick="toggleMLConfig()" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2 rounded-lg font-semibold transition-colors">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Product Form -->
+    <div id="addProductForm" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Adicionar Novo Produto</h2>
+            <form onsubmit="addProduct(event)">
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-semibold mb-2">Nome do Produto</label>
+                    <input type="text" id="productName" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-semibold mb-2">Categoria</label>
+                    <select id="productCategory" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <option value="eletronicos">Eletrônicos</option>
+                        <option value="roupas">Roupas</option>
+                        <option value="casa">Casa e Jardim</option>
+                        <option value="esportes">Esportes</option>
+                        <option value="livros">Livros</option>
+                        <option value="outros">Outros</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-semibold mb-2">Descrição</label>
+                    <textarea id="productDescription" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-semibold mb-2">Preço (R$)</label>
+                    <input type="number" id="productPrice" step="0.01" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-semibold mb-2">Estoque Inicial</label>
+                    <input type="number" id="productStock" min="0" value="10" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 font-semibold mb-2">URL da Imagem</label>
+                    <input type="url" id="productImage" placeholder="https://exemplo.com/imagem.jpg" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                </div>
+                <div class="flex gap-4">
+                    <button type="submit" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg font-semibold transition-colors">
+                        Adicionar
+                    </button>
+                    <button type="button" onclick="toggleAddForm()" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2 rounded-lg font-semibold transition-colors">
+                        Cancelar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Products Grid -->
+    <main class="max-w-7xl mx-auto px-4 pb-8">
+        <div id="productsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Products will be rendered here -->
+        </div>
+        
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-16">
+            <div class="text-6xl mb-4">📦</div>
+            <h3 class="text-2xl font-semibold text-gray-600 mb-2">Nenhum produto ainda</h3>
+            <p class="text-gray-500 mb-6">Conecte ao Mercado Livre ou adicione produtos manualmente!</p>
+            <div class="flex gap-4 justify-center">
+                <button onclick="toggleMLConfig()" class="ml-btn px-8 py-3 rounded-lg font-semibold">
+                    Conectar Mercado Livre
+                </button>
+                <button onclick="toggleAddForm()" class="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors">
+                    Adicionar Manualmente
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- WhatsApp Configuration -->
+    <div class="fixed bottom-6 right-6">
+        <button onclick="toggleWhatsAppConfig()" class="bg-green-600 hover:bg-green-700 text-white p-3 rounded-full shadow-lg transition-colors" title="Configurar WhatsApp">
+            📱
+        </button>
+    </div>
+
+    <!-- WhatsApp Config Modal -->
+    <div id="whatsappConfig" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Configurar WhatsApp</h2>
+            <div class="mb-4">
+                <label class="block text-gray-700 font-semibold mb-2">Número do WhatsApp</label>
+                <input type="tel" id="whatsappNumber" placeholder="5511999999999" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                <p class="text-sm text-gray-500 mt-1">Formato: código do país + DDD + número (sem espaços)</p>
+            </div>
+            <div class="mb-6">
+                <label class="block text-gray-700 font-semibold mb-2">Mensagem Padrão</label>
+                <textarea id="defaultMessage" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent h-24">Olá! Tenho interesse no produto:</textarea>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="saveWhatsAppConfig()" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold transition-colors">
+                    Salvar
+                </button>
+                <button onclick="toggleWhatsAppConfig()" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2 rounded-lg font-semibold transition-colors">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let products = [];
+        let whatsappNumber = '5511999999999';
+        let defaultMessage = 'Olá! Tenho interesse no produto:';
+        let mlConfig = {
+            userId: '',
+            token: '',
+            autoSync: false,
+            connected: false
+        };
+
+        // Sample Mercado Livre products for demo
+        const sampleMLProducts = [
+            {
+                id: 'MLB123456789',
+                title: 'iPhone 14 Pro Max 256GB',
+                price: 6999.99,
+                available_quantity: 5,
+                thumbnail: '📱',
+                condition: 'new',
+                category_id: 'eletronicos',
+                permalink: 'https://mercadolivre.com.br/...',
+                description: 'iPhone 14 Pro Max com 256GB de armazenamento, câmera profissional e tela Super Retina XDR.'
+            },
+            {
+                id: 'MLB987654321',
+                title: 'Notebook Gamer RTX 4060',
+                price: 4299.90,
+                available_quantity: 2,
+                thumbnail: '💻',
+                condition: 'new',
+                category_id: 'eletronicos',
+                permalink: 'https://mercadolivre.com.br/...',
+                description: 'Notebook gamer com placa RTX 4060, processador Intel i7 e 16GB RAM.'
+            },
+            {
+                id: 'MLB456789123',
+                title: 'Tênis Nike Air Max',
+                price: 599.99,
+                available_quantity: 0,
+                thumbnail: '👟',
+                condition: 'new',
+                category_id: 'esportes',
+                permalink: 'https://mercadolivre.com.br/...',
+                description: 'Tênis Nike Air Max confortável para corrida e uso casual.'
+            },
+            {
+                id: 'MLB789123456',
+                title: 'Fone JBL Bluetooth',
+                price: 299.99,
+                available_quantity: 15,
+                thumbnail: '🎧',
+                condition: 'new',
+                category_id: 'eletronicos',
+                permalink: 'https://mercadolivre.com.br/...',
+                description: 'Fone de ouvido JBL sem fio com cancelamento de ruído ativo.'
+            }
+        ];
+
+        // Load data from localStorage
+        function loadData() {
+            const savedProducts = localStorage.getItem('catalogProducts');
+            const savedWhatsApp = localStorage.getItem('whatsappNumber');
+            const savedMessage = localStorage.getItem('defaultMessage');
+            const savedMLConfig = localStorage.getItem('mlConfig');
+            
+            if (savedProducts) {
+                products = JSON.parse(savedProducts);
+            }
+            if (savedWhatsApp) {
+                whatsappNumber = savedWhatsApp;
+            }
+            if (savedMessage) {
+                defaultMessage = savedMessage;
+            }
+            if (savedMLConfig) {
+                mlConfig = JSON.parse(savedMLConfig);
+            }
+            
+            updateStatusBar();
+            updateStats();
+            renderProducts();
+        }
+
+        // Save data to localStorage
+        function saveData() {
+            localStorage.setItem('catalogProducts', JSON.stringify(products));
+            localStorage.setItem('whatsappNumber', whatsappNumber);
+            localStorage.setItem('defaultMessage', defaultMessage);
+            localStorage.setItem('mlConfig', JSON.stringify(mlConfig));
+        }
+
+        // Update status bar
+        function updateStatusBar() {
+            const statusDot = document.getElementById('mlStatus');
+            const statusText = document.getElementById('mlStatusText');
+            const lastSync = document.getElementById('lastSync');
+            const totalProducts = document.getElementById('totalProducts');
+            
+            if (mlConfig.connected) {
+                statusDot.className = 'w-3 h-3 bg-green-400 rounded-full';
+                statusText.textContent = 'Conectado ao Mercado Livre';
+                lastSync.textContent = mlConfig.lastSync || 'Nunca';
+            } else {
+                statusDot.className = 'w-3 h-3 bg-red-400 rounded-full';
+                statusText.textContent = 'Desconectado do Mercado Livre';
+                lastSync.textContent = 'Nunca';
+            }
+            
+            totalProducts.textContent = products.length;
+        }
+
+        // Update statistics
+        function updateStats() {
+            const total = products.length;
+            const inStock = products.filter(p => (p.stock || 0) > 5).length;
+            const lowStock = products.filter(p => (p.stock || 0) > 0 && (p.stock || 0) <= 5).length;
+            const outStock = products.filter(p => (p.stock || 0) === 0).length;
+            
+            document.getElementById('statsTotal').textContent = total;
+            document.getElementById('statsInStock').textContent = inStock;
+            document.getElementById('statsLowStock').textContent = lowStock;
+            document.getElementById('statsOutStock').textContent = outStock;
+        }
+
+        // Open client catalog
+        function openClientCatalog() {
+            // In a real implementation, this would open the client catalog in a new tab
+            // For demo purposes, we'll show a message
+            showNotification('Em uma implementação real, isso abriria o catálogo do cliente em uma nova aba', 'info');
+        }
+
+        // Toggle modals
+        function toggleAddForm() {
+            document.getElementById('addProductForm').classList.toggle('hidden');
+        }
+
+        function toggleMLConfig() {
+            const modal = document.getElementById('mlConfig');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                document.getElementById('mlUserId').value = mlConfig.userId;
+                document.getElementById('mlToken').value = mlConfig.token;
+                document.getElementById('autoSync').checked = mlConfig.autoSync;
+            }
+        }
+
+        function toggleWhatsAppConfig() {
+            const modal = document.getElementById('whatsappConfig');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                document.getElementById('whatsappNumber').value = whatsappNumber;
+                document.getElementById('defaultMessage').value = defaultMessage;
+            }
+        }
+
+        // Save configurations
+        function saveMLConfig() {
+            const userId = document.getElementById('mlUserId').value;
+            const token = document.getElementById('mlToken').value;
+            const autoSync = document.getElementById('autoSync').checked;
+            
+            if (userId && token) {
+                mlConfig = {
+                    userId,
+                    token,
+                    autoSync,
+                    connected: true,
+                    lastSync: new Date().toLocaleString('pt-BR')
+                };
+                
+                saveData();
+                updateStatusBar();
+                toggleMLConfig();
+                
+                showNotification('Conectado ao Mercado Livre com sucesso!', 'success');
+                setTimeout(() => syncMercadoLivre(), 1000);
+            } else {
+                showNotification('Preencha todos os campos obrigatórios', 'error');
+            }
+        }
+
+        function saveWhatsAppConfig() {
+            whatsappNumber = document.getElementById('whatsappNumber').value || whatsappNumber;
+            defaultMessage = document.getElementById('defaultMessage').value || defaultMessage;
+            saveData();
+            toggleWhatsAppConfig();
+            showNotification('Configuração do WhatsApp salva!', 'success');
+        }
+
+        // Sync with Mercado Livre (Demo)
+        function syncMercadoLivre() {
+            if (!mlConfig.connected) {
+                showNotification('Configure a conexão com o Mercado Livre primeiro', 'error');
+                return;
+            }
+            
+            const syncBtn = document.getElementById('syncBtn');
+            const syncIcon = document.getElementById('syncIcon');
+            
+            syncBtn.disabled = true;
+            syncIcon.classList.add('sync-animation');
+            syncBtn.innerHTML = '<span class="sync-animation">🔄</span> Sincronizando...';
+            
+            setTimeout(() => {
+                const mlProducts = sampleMLProducts.map(item => ({
+                    id: Date.now() + Math.random(),
+                    name: item.title,
+                    description: item.description,
+                    price: item.price,
+                    stock: item.available_quantity,
+                    image: item.thumbnail,
+                    category: item.category_id,
+                    mlId: item.id,
+                    mlPermalink: item.permalink,
+                    condition: item.condition,
+                    source: 'mercadolivre'
+                }));
+                
+                products = products.filter(p => p.source !== 'mercadolivre');
+                products = [...products, ...mlProducts];
+                
+                mlConfig.lastSync = new Date().toLocaleString('pt-BR');
+                saveData();
+                updateStatusBar();
+                updateStats();
+                renderProducts();
+                
+                syncBtn.disabled = false;
+                syncIcon.classList.remove('sync-animation');
+                syncBtn.innerHTML = '<span>🔄</span> Sincronizar ML';
+                
+                showNotification(`${mlProducts.length} produtos sincronizados do Mercado Livre!`, 'success');
+            }, 2000);
+        }
+
+        // Add product manually
+        function addProduct(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('productName').value;
+            const category = document.getElementById('productCategory').value;
+            const description = document.getElementById('productDescription').value;
+            const price = parseFloat(document.getElementById('productPrice').value);
+            const stock = parseInt(document.getElementById('productStock').value) || 0;
+            const image = document.getElementById('productImage').value;
+            
+            const product = {
+                id: Date.now(),
+                name,
+                category,
+                description,
+                price,
+                stock,
+                image: image || generateProductIcon(name),
+                source: 'manual'
+            };
+            
+            products.push(product);
+            saveData();
+            renderProducts();
+            updateStatusBar();
+            updateStats();
+            
+            event.target.reset();
+            toggleAddForm();
+            showNotification('Produto adicionado com sucesso!', 'success');
+        }
+
+        // Generate product icon
+        function generateProductIcon(name) {
+            const icons = ['📱', '👕', '👟', '🎧', '💻', '📚', '🎮', '⌚', '🍕', '☕'];
+            return icons[Math.floor(Math.random() * icons.length)];
+        }
+
+        // Remove product
+        function removeProduct(id) {
+            if (confirm('Tem certeza que deseja remover este produto?')) {
+                products = products.filter(p => p.id !== id);
+                saveData();
+                renderProducts();
+                updateStatusBar();
+                updateStats();
+                showNotification('Produto removido', 'success');
+            }
+        }
+
+        // Edit stock
+        function editStock(id) {
+            const product = products.find(p => p.id === id);
+            if (!product) return;
+            
+            const newStock = prompt(`Alterar estoque de "${product.name}":\nEstoque atual: ${product.stock || 0}`, product.stock || 0);
+            if (newStock !== null && !isNaN(newStock)) {
+                product.stock = parseInt(newStock);
+                saveData();
+                renderProducts();
+                updateStats();
+                showNotification('Estoque atualizado!', 'success');
+            }
+        }
+
+        // Get stock status class
+        function getStockClass(stock) {
+            if (stock === 0) return 'stock-out';
+            if (stock <= 5) return 'stock-low';
+            return 'stock-good';
+        }
+
+        // Get stock status text
+        function getStockStatus(stock) {
+            if (stock === 0) return 'Fora de estoque';
+            if (stock <= 5) return 'Estoque baixo';
+            return 'Em estoque';
+        }
+
+        // Render products
+        function renderProducts() {
+            const grid = document.getElementById('productsGrid');
+            const emptyState = document.getElementById('emptyState');
+            
+            if (products.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            
+            emptyState.classList.add('hidden');
+            
+            grid.innerHTML = products.map(product => `
+                <div class="product-card bg-white rounded-xl shadow-lg overflow-hidden">
+                    <div class="relative">
+                        ${product.image && product.image.startsWith('http') ? 
+                            `<img src="${product.image}" alt="${product.name}" class="w-full h-48 object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                             <div class="w-full h-48 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center text-6xl" style="display: none;">${generateProductIcon(product.name)}</div>` :
+                            `<div class="w-full h-48 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center text-6xl">${product.image || generateProductIcon(product.name)}</div>`
+                        }
+                        <button onclick="removeProduct(${product.id})" class="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white w-8 h-8 rounded-full flex items-center justify-center transition-colors">
+                            ✕
+                        </button>
+                        ${product.source === 'mercadolivre' ? 
+                            '<div class="absolute top-2 left-2 bg-yellow-400 text-black px-2 py-1 rounded text-xs font-bold">ML</div>' : 
+                            '<div class="absolute top-2 left-2 bg-purple-500 text-white px-2 py-1 rounded text-xs font-bold">Manual</div>'
+                        }
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">${product.name}</h3>
+                        <p class="text-gray-600 mb-4 line-clamp-3">${product.description}</p>
+                        
+                        <!-- Stock Status -->
+                        <div class="mb-4 p-3 rounded-lg ${getStockClass(product.stock || 0)}">
+                            <div class="flex justify-between items-center">
+                                <span class="font-semibold">${getStockStatus(product.stock || 0)}</span>
+                                <button onclick="editStock(${product.id})" class="text-sm bg-white bg-opacity-50 px-2 py-1 rounded hover:bg-opacity-75 transition-colors">
+                                    ${product.stock || 0} unidades ✏️
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between">
+                            <span class="text-2xl font-bold text-green-600">R$ ${product.price.toFixed(2)}</span>
+                            <div class="text-sm text-gray-500">
+                                ${product.category || 'Sem categoria'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Show notification
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg text-white font-semibold transform transition-all duration-300 translate-x-full ${
+                type === 'success' ? 'bg-green-500' : 
+                type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+            }`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.remove('translate-x-full');
+            }, 100);
+            
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        // Initialize app
+        loadData();
+
+        // Add sample manual product if none exist
+        if (products.length === 0) {
+            products = [
+                {
+                    id: 1,
+                    name: "Produto de Exemplo",
+                    category: "outros",
+                    description: "Este é um produto adicionado manualmente para demonstração. Use o painel para gerenciar seus produtos.",
+                    price: 99.99,
+                    stock: 10,
+                    image: "📦",
+                    source: "manual"
+                }
+            ];
+            saveData();
+            renderProducts();
+            updateStatusBar();
+            updateStats();
+        }
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97ae6001531a6278',t:'MTc1NzE2NTk5My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo Online - Sua Loja</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .product-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .whatsapp-btn {
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            transition: all 0.3s ease;
+        }
+        .whatsapp-btn:hover {
+            background: linear-gradient(135deg, #128C7E, #075E54);
+            transform: scale(1.05);
+        }
+        .client-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .filter-btn {
+            transition: all 0.3s ease;
+        }
+        .filter-btn.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            transform: scale(1.05);
+        }
+        .search-container {
+            position: relative;
+        }
+        .search-container::before {
+            content: '🔍';
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 16px;
+        }
+        .price-badge {
+            background: linear-gradient(135deg, #10B981, #059669);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-purple-50 min-h-screen">
+    <!-- Client Header -->
+    <header class="client-header shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <div class="text-center">
+                <h1 class="text-4xl font-bold text-white mb-2">🛍️ Sua Loja Online</h1>
+                <p class="text-purple-100">Encontre os melhores produtos com os melhores preços</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Search and Filters -->
+    <div class="max-w-7xl mx-auto px-4 py-6">
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex flex-col lg:flex-row gap-6 items-center">
+                <!-- Search -->
+                <div class="search-container flex-1 w-full">
+                    <input 
+                        type="text" 
+                        id="searchInput" 
+                        placeholder="Buscar produtos..." 
+                        class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        onkeyup="filterProducts()"
+                    >
+                </div>
+                
+                <!-- Category Filter -->
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="filterByCategory('todos')" class="filter-btn active px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50" data-category="todos">
+                        Todos
+                    </button>
+                    <button onclick="filterByCategory('eletronicos')" class="filter-btn px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50" data-category="eletronicos">
+                        📱 Eletrônicos
+                    </button>
+                    <button onclick="filterByCategory('roupas')" class="filter-btn px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50" data-category="roupas">
+                        👕 Roupas
+                    </button>
+                    <button onclick="filterByCategory('casa')" class="filter-btn px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50" data-category="casa">
+                        🏠 Casa
+                    </button>
+                    <button onclick="filterByCategory('esportes')" class="filter-btn px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50" data-category="esportes">
+                        ⚽ Esportes
+                    </button>
+                </div>
+                
+                <!-- Price Filter -->
+                <div class="flex items-center gap-2">
+                    <label class="text-gray-700 font-medium">Preço até:</label>
+                    <select id="priceFilter" onchange="filterProducts()" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                        <option value="">Todos</option>
+                        <option value="100">R$ 100</option>
+                        <option value="500">R$ 500</option>
+                        <option value="1000">R$ 1.000</option>
+                        <option value="5000">R$ 5.000</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Products Grid -->
+    <main class="max-w-7xl mx-auto px-4 pb-8">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">Nossos Produtos</h2>
+            <div class="text-gray-600">
+                <span id="productCount">0</span> produtos encontrados
+            </div>
+        </div>
+        
+        <div id="productsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Products will be rendered here -->
+        </div>
+        
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-16">
+            <div class="text-6xl mb-4">🔍</div>
+            <h3 class="text-2xl font-semibold text-gray-600 mb-2">Nenhum produto encontrado</h3>
+            <p class="text-gray-500 mb-6">Tente ajustar os filtros ou buscar por outros termos</p>
+            <button onclick="clearFilters()" class="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors">
+                Limpar Filtros
+            </button>
+        </div>
+
+        <!-- No Products State -->
+        <div id="noProductsState" class="hidden text-center py-16">
+            <div class="text-6xl mb-4">📦</div>
+            <h3 class="text-2xl font-semibold text-gray-600 mb-2">Loja em preparação</h3>
+            <p class="text-gray-500 mb-6">Em breve teremos produtos incríveis para você!</p>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-8 mt-16">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <h3 class="text-2xl font-bold mb-4">Entre em contato conosco!</h3>
+            <p class="text-gray-300 mb-6">Tem dúvidas? Quer saber mais sobre nossos produtos? Fale conosco pelo WhatsApp!</p>
+            <button onclick="contactWhatsApp('Olá! Gostaria de saber mais sobre os produtos da loja.', 0)" class="whatsapp-btn text-white px-8 py-3 rounded-lg font-semibold flex items-center gap-2 mx-auto">
+                📱 Falar no WhatsApp
+            </button>
+        </div>
+    </footer>
+
+    <script>
+        let allProducts = [];
+        let filteredProducts = [];
+        let whatsappNumber = '5511999999999';
+        let defaultMessage = 'Olá! Tenho interesse no produto:';
+        let currentCategory = 'todos';
+
+        // Load data from localStorage
+        function loadData() {
+            const savedProducts = localStorage.getItem('catalogProducts');
+            const savedWhatsApp = localStorage.getItem('whatsappNumber');
+            const savedMessage = localStorage.getItem('defaultMessage');
+            
+            if (savedProducts) {
+                allProducts = JSON.parse(savedProducts);
+                // Only show products with stock > 0
+                allProducts = allProducts.filter(p => (p.stock || 0) > 0);
+            }
+            if (savedWhatsApp) {
+                whatsappNumber = savedWhatsApp;
+            }
+            if (savedMessage) {
+                defaultMessage = savedMessage;
+            }
+            
+            filteredProducts = [...allProducts];
+            renderProducts();
+        }
+
+        // Filter by category
+        function filterByCategory(category) {
+            currentCategory = category;
+            
+            // Update active button
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-category="${category}"]`).classList.add('active');
+            
+            filterProducts();
+        }
+
+        // Filter products
+        function filterProducts() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const maxPrice = document.getElementById('priceFilter').value;
+            
+            filteredProducts = allProducts.filter(product => {
+                // Category filter
+                const categoryMatch = currentCategory === 'todos' || product.category === currentCategory;
+                
+                // Search filter
+                const searchMatch = product.name.toLowerCase().includes(searchTerm) || 
+                                  product.description.toLowerCase().includes(searchTerm);
+                
+                // Price filter
+                const priceMatch = !maxPrice || product.price <= parseFloat(maxPrice);
+                
+                return categoryMatch && searchMatch && priceMatch;
+            });
+            
+            renderProducts();
+        }
+
+        // Clear all filters
+        function clearFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('priceFilter').value = '';
+            filterByCategory('todos');
+        }
+
+        // Contact via WhatsApp
+        function contactWhatsApp(productName, productPrice) {
+            let message;
+            if (productPrice > 0) {
+                message = `${defaultMessage}\n\n*${productName}*\nPreço: R$ ${productPrice.toFixed(2)}`;
+            } else {
+                message = productName;
+            }
+            
+            const encodedMessage = encodeURIComponent(message);
+            const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
+            window.open(whatsappUrl, '_blank');
+        }
+
+        // Generate product icon
+        function generateProductIcon(name) {
+            const icons = ['📱', '👕', '👟', '🎧', '💻', '📚', '🎮', '⌚', '🍕', '☕'];
+            return icons[Math.floor(Math.random() * icons.length)];
+        }
+
+        // Get category icon
+        function getCategoryIcon(category) {
+            const icons = {
+                'eletronicos': '📱',
+                'roupas': '👕',
+                'casa': '🏠',
+                'esportes': '⚽',
+                'livros': '📚',
+                'outros': '📦'
+            };
+            return icons[category] || '📦';
+        }
+
+        // Render products
+        function renderProducts() {
+            const grid = document.getElementById('productsGrid');
+            const emptyState = document.getElementById('emptyState');
+            const noProductsState = document.getElementById('noProductsState');
+            const productCount = document.getElementById('productCount');
+            
+            productCount.textContent = filteredProducts.length;
+            
+            if (allProducts.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.add('hidden');
+                noProductsState.classList.remove('hidden');
+                return;
+            }
+            
+            noProductsState.classList.add('hidden');
+            
+            if (filteredProducts.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            
+            emptyState.classList.add('hidden');
+            
+            grid.innerHTML = filteredProducts.map(product => `
+                <div class="product-card bg-white rounded-xl shadow-lg overflow-hidden">
+                    <div class="relative">
+                        ${product.image && product.image.startsWith('http') ? 
+                            `<img src="${product.image}" alt="${product.name}" class="w-full h-48 object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                             <div class="w-full h-48 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center text-6xl" style="display: none;">${generateProductIcon(product.name)}</div>` :
+                            `<div class="w-full h-48 bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center text-6xl">${product.image || generateProductIcon(product.name)}</div>`
+                        }
+                        
+                        <!-- Category Badge -->
+                        <div class="absolute top-2 left-2 bg-white bg-opacity-90 backdrop-blur px-2 py-1 rounded text-xs font-bold text-gray-700">
+                            ${getCategoryIcon(product.category || 'outros')} ${(product.category || 'outros').charAt(0).toUpperCase() + (product.category || 'outros').slice(1)}
+                        </div>
+                        
+                        <!-- Stock Badge -->
+                        ${(product.stock || 0) <= 5 ? 
+                            `<div class="absolute top-2 right-2 bg-yellow-500 text-white px-2 py-1 rounded text-xs font-bold">
+                                Últimas ${product.stock} unidades!
+                            </div>` : ''
+                        }
+                    </div>
+                    
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">${product.name}</h3>
+                        <p class="text-gray-600 mb-4 line-clamp-3">${product.description}</p>
+                        
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="price-badge text-white px-4 py-2 rounded-lg">
+                                <span class="text-2xl font-bold">R$ ${product.price.toFixed(2)}</span>
+                            </div>
+                            <div class="text-sm text-gray-500">
+                                ${product.stock || 0} disponíveis
+                            </div>
+                        </div>
+                        
+                        <button onclick="contactWhatsApp('${product.name}', ${product.price})" class="whatsapp-btn w-full text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:shadow-lg">
+                            📱 Comprar pelo WhatsApp
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Initialize app
+        loadData();
+
+        // Refresh data every 30 seconds to sync with admin changes
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>
